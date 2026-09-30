@@ -17,7 +17,12 @@
                     <span>Simple daily nutrition tracking.</span>
                 </span>
             </a>
-            <span class="header-date">{{ today.strftime('%A, %B %-d') }}</span>
+            <div class="header-tools">
+                <span class="header-date">{{ today.strftime('%A, %B %-d') }}</span>
+                <form method="post" action="{{ url_for('logout') }}">
+                    <button class="logout-button" type="submit">Log out</button>
+                </form>
+            </div>
         </header>
 
         <section class="summary-card" aria-labelledby="summary-title" aria-live="polite">
@@ -49,12 +54,24 @@
                     <input id="food" name="food" type="text" maxlength="100" placeholder="e.g. Greek yogurt" value="{{ food_value }}" required>
                 </div>
                 <div class="field">
-                    <label for="calories">Calories per serving</label>
-                    <input id="calories" name="calories" type="number" min="0.01" step="any" inputmode="decimal" placeholder="150" value="{{ calories_value }}" required>
+                    <label for="label_calories">Calories on label</label>
+                    <input id="label_calories" name="label_calories" type="number" min="0.01" step="any" inputmode="decimal" placeholder="150" value="{{ label_calories_value }}" required>
                 </div>
                 <div class="field">
-                    <label for="servings">Number of servings</label>
-                    <input id="servings" name="servings" type="number" min="0.01" step="any" inputmode="decimal" placeholder="1" value="{{ servings_value }}" required>
+                    <label for="reference_size">Reference serving size</label>
+                    <input id="reference_size" name="reference_size" type="number" min="0.01" step="any" inputmode="decimal" placeholder="40" value="{{ reference_size_value }}" required>
+                </div>
+                <div class="field">
+                    <label for="unit">Unit</label>
+                    <select id="unit" name="unit" required>
+                        <option value="serving" {% if unit_value == 'serving' %}selected{% endif %}>serving</option>
+                        <option value="g" {% if unit_value == 'g' %}selected{% endif %}>g</option>
+                        <option value="oz" {% if unit_value == 'oz' %}selected{% endif %}>oz</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="amount_eaten">Amount eaten</label>
+                    <input id="amount_eaten" name="amount_eaten" type="number" min="0.01" step="any" inputmode="decimal" placeholder="60" value="{{ amount_eaten_value }}" required>
                 </div>
                 <button class="add-button" type="submit">Add Entry <span aria-hidden="true">→</span></button>
             </form>
@@ -80,7 +97,7 @@
                                 <span class="food-marker" aria-hidden="true"></span>
                                 <div class="food-copy">
                                     <h3>{{ entry.food }}</h3>
-                                    <p>{{ entry.servings|round(2) }} {{ 'serving' if entry.servings == 1 else 'servings' }} <span aria-hidden="true">·</span> {{ entry.calories_per_serving|round|int }} kcal per serving</p>
+                                    <p>{{ entry.amount_eaten|round(2) }} {{ entry.unit }}{{ 's' if entry.unit == 'serving' and entry.amount_eaten != 1 else '' }} eaten <span aria-hidden="true">·</span> {{ entry.label_calories|round(2) }} kcal per {{ entry.reference_size|round(2) }} {{ entry.unit }}</p>
                                 </div>
                             </div>
                             <div class="entry-end">

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f7f2">
+    <title>Log in | FuelLog</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="app-shell auth-page">
+        <header class="app-header">
+            <a class="brand" href="{{ url_for('login') }}" aria-label="FuelLog home">
+                <span class="brand-mark" aria-hidden="true">F</span>
+                <span class="brand-copy">
+                    <strong>FuelLog</strong>
+                    <span>Simple daily nutrition tracking.</span>
+                </span>
+            </a>
+        </header>
+
+        <section class="content-card auth-card" aria-labelledby="auth-title">
+            <div class="card-heading">
+                <span class="heading-icon" aria-hidden="true">↗</span>
+                <div>
+                    <h1 id="auth-title">Welcome back</h1>
+                    <p>Log in to view your daily food log.</p>
+                </div>
+            </div>
+
+            {% if error %}
+                <p class="form-error" role="alert">{{ error }}</p>
+            {% endif %}
+
+            <form class="auth-form" method="post" action="{{ url_for('login') }}">
+                <div class="field">
+                    <label for="identity">Username or email</label>
+                    <input id="identity" name="identity" type="text" autocomplete="username" value="{{ identity_value }}" required>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" required>
+                </div>
+                <button class="add-button" type="submit">Log in</button>
+            </form>
+
+            <p class="auth-switch">New to FuelLog? <a href="{{ url_for('register') }}">Create an account</a></p>
+        </section>
+    </main>
+</body>
+</html>

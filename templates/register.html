@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f7f2">
+    <title>Create account | FuelLog</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="app-shell auth-page">
+        <header class="app-header">
+            <a class="brand" href="{{ url_for('login') }}" aria-label="FuelLog home">
+                <span class="brand-mark" aria-hidden="true">F</span>
+                <span class="brand-copy">
+                    <strong>FuelLog</strong>
+                    <span>Simple daily nutrition tracking.</span>
+                </span>
+            </a>
+        </header>
+
+        <section class="content-card auth-card" aria-labelledby="auth-title">
+            <div class="card-heading">
+                <span class="heading-icon" aria-hidden="true">+</span>
+                <div>
+                    <h1 id="auth-title">Create your account</h1>
+                    <p>Your food log is private to your account.</p>
+                </div>
+            </div>
+
+            {% if error %}
+                <p class="form-error" role="alert">{{ error }}</p>
+            {% endif %}
+
+            <form class="auth-form" method="post" action="{{ url_for('register') }}">
+                <div class="field">
+                    <label for="username">Username</label>
+                    <input id="username" name="username" type="text" maxlength="40" autocomplete="username" value="{{ username_value }}" required>
+                </div>
+                <div class="field">
+                    <label for="email">Email</label>
+                    <input id="email" name="email" type="email" autocomplete="email" value="{{ email_value }}" required>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+                </div>
+                <div class="field">
+                    <label for="confirm_password">Confirm password</label>
+                    <input id="confirm_password" name="confirm_password" type="password" minlength="8" autocomplete="new-password" required>
+                </div>
+                <button class="add-button" type="submit">Create account</button>
+            </form>
+
+            <p class="auth-switch">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+        </section>
+    </main>
+</body>
+</html>

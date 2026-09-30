@@ -99,6 +99,33 @@ input:focus-visible {
     text-align: right;
 }
 
+.header-tools {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.header-tools form {
+    margin: 0;
+}
+
+.logout-button {
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid #d6e3d8;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--green);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.logout-button:hover {
+    border-color: #b8d1bd;
+    background: var(--green-soft);
+}
+
 .summary-card {
     position: relative;
     display: flex;
@@ -245,6 +272,23 @@ input:focus-visible {
     color: var(--ink);
     font-size: 14px;
     transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.field select {
+    width: 100%;
+    height: 46px;
+    padding: 0 13px;
+    border: 1px solid #dce5de;
+    border-radius: 9px;
+    background: #fcfdfc;
+    color: var(--ink);
+    font-size: 14px;
+}
+
+.field select:focus-visible {
+    border-color: var(--green);
+    outline: 3px solid rgba(36, 96, 68, 0.2);
+    outline-offset: 1px;
 }
 
 .field input::placeholder {
@@ -567,5 +611,66 @@ input:focus-visible {
     *::after {
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
+    }
+}
+
+.auth-card {
+    width: min(100%, 520px);
+    margin: 24px auto 0;
+    padding: 30px;
+}
+
+.auth-card .card-heading h1 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 680;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 26px;
+}
+
+.auth-form .add-button {
+    width: 100%;
+    margin-top: 4px;
+}
+
+.auth-switch {
+    margin: 22px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.auth-switch a {
+    color: var(--green);
+    font-weight: 650;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+
+.auth-switch a:hover {
+    color: var(--green-deep);
+}
+
+@media (max-width: 420px) {
+    .header-tools {
+        gap: 8px;
+    }
+
+    .header-tools .header-date {
+        max-width: 90px;
+    }
+
+    .logout-button {
+        min-height: 33px;
+        padding: 0 9px;
+    }
+
+    .auth-card {
+        padding: 24px 20px;
     }
 }
