@@ -109,6 +109,69 @@ input:focus-visible {
     margin: 0;
 }
 
+.header-greeting {
+    color: var(--green-deep);
+    font-size: 13px;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.header-link,
+.header-action {
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 650;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.header-action {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--green);
+    color: #ffffff;
+}
+
+.guest-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: -8px 0 20px;
+    padding: 13px 16px;
+    border: 1px solid #d6e3d8;
+    border-radius: 10px;
+    background: #edf4eb;
+}
+
+.guest-banner p {
+    margin: 0;
+    color: #405c49;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.guest-banner > div {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 14px;
+}
+
+.guest-banner a {
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 650;
+    text-decoration: none;
+}
+
+.guest-banner .guest-create-link {
+    padding: 8px 10px;
+    border-radius: 7px;
+    background: var(--green);
+    color: #ffffff;
+}
+
 .logout-button {
     min-height: 36px;
     padding: 0 13px;
@@ -533,6 +596,19 @@ input:focus-visible {
 
     .app-header {
         margin-bottom: 20px;
+    }
+
+    .header-tools {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .guest-banner {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 11px;
+        margin-top: 0;
     }
 
     .summary-card {

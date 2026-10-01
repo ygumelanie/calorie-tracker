@@ -22,10 +22,11 @@ class CalorieTrackerTests(unittest.TestCase):
     def tearDown(self):
         self.temporary_directory.cleanup()
 
-    def register(self, username="mira", email="mira@example.com", password="test-password-123"):
+    def register(self, username="mira", email="mira@example.com", password="test-password-123", first_name="Mira"):
         return self.client.post(
             "/register",
             data={
+                "first_name": first_name,
                 "username": username,
                 "email": email,
                 "password": password,
@@ -66,7 +67,7 @@ class CalorieTrackerTests(unittest.TestCase):
         self.assertTrue(check_password_hash(password_hash, "test-password-123"))
 
         logged_out = self.client.post("/logout", follow_redirects=True)
-        self.assertIn("Welcome back", logged_out.get_data(as_text=True))
+        self.assertIn("guest mode", logged_out.get_data(as_text=True))
         logged_in = self.log_in(identity="mira@example.com")
         self.assertIn("Today’s Calories", logged_in.get_data(as_text=True))
 
@@ -84,6 +85,7 @@ class CalorieTrackerTests(unittest.TestCase):
         response = self.client.post(
             "/register",
             data={
+                "first_name": "Mira",
                 "username": "mira",
                 "email": "mira@example.com",
                 "password": "test-password-123",
@@ -122,13 +124,47 @@ class CalorieTrackerTests(unittest.TestCase):
         self.assertEqual(old_entry, ("Old oatmeal",))
         self.assertIn("user_id", {row[1] for row in self.database_rows("PRAGMA table_info(food_entries)")})
 
-    def test_tracker_and_delete_require_login(self):
+    def test_homepage_is_public_and_shows_guest_actions(self):
         tracker = self.client.get("/")
-        delete = self.client.post("/delete/1")
-        self.assertEqual(tracker.status_code, 302)
-        self.assertIn("/login", tracker.headers["Location"])
-        self.assertEqual(delete.status_code, 302)
-        self.assertIn("/login", delete.headers["Location"])
+        self.assertEqual(tracker.status_code, 200)
+        body = tracker.get_data(as_text=True)
+        self.assertIn("You’re using guest mode. Create an account to save your food log.", body)
+        self.assertIn("Log in", body)
+        self.assertIn("Create account", body)
+
+    def test_guest_entry_calculates_displays_persists_in_session_and_deletes(self):
+        response = self.add_oatmeal()
+        self.assertIn("225", response.get_data(as_text=True))
+        refreshed = self.client.get("/")
+        self.assertIn("Oatmeal", refreshed.get_data(as_text=True))
+        self.assertEqual(self.database_rows("SELECT COUNT(*) FROM food_entries")[0][0], 0)
+
+        deleted = self.client.post("/delete/1", follow_redirects=True)
+        self.assertNotIn("Oatmeal", deleted.get_data(as_text=True))
+        self.assertEqual(self.database_rows("SELECT COUNT(*) FROM food_entries")[0][0], 0)
+
+    def test_guest_entries_transfer_after_registration_and_session_is_cleared(self):
+        self.add_oatmeal()
+        response = self.register()
+        self.assertIn("Oatmeal", response.get_data(as_text=True))
+        self.assertEqual(self.database_rows("SELECT food, total_calories FROM food_entries"), [("Oatmeal", 225.0)])
+        with self.client.session_transaction() as browser_session:
+            self.assertNotIn("guest_entries", browser_session)
+
+    def test_logged_in_header_uses_first_name(self):
+        response = self.register(first_name="Mira")
+        self.assertIn("Hi, Mira", response.get_data(as_text=True))
+
+    def test_guest_entries_transfer_after_login(self):
+        self.register()
+        self.client.post("/logout")
+        self.add_oatmeal()
+        response = self.log_in()
+        self.assertIn("Hi, Mira", response.get_data(as_text=True))
+        self.assertIn("Oatmeal", response.get_data(as_text=True))
+        self.assertEqual(self.database_rows("SELECT food FROM food_entries"), [("Oatmeal",)])
+        with self.client.session_transaction() as browser_session:
+            self.assertNotIn("guest_entries", browser_session)
 
     def test_unit_calculation_and_entries_persist_after_refresh(self):
         self.register()
@@ -149,7 +185,7 @@ class CalorieTrackerTests(unittest.TestCase):
         entry_id, owner_id = self.database_rows("SELECT id, user_id FROM food_entries")[0]
 
         self.client.post("/logout")
-        other_account = self.register("noah", "noah@example.com")
+        other_account = self.register("noah", "noah@example.com", first_name="Noah")
         self.assertNotIn("Oatmeal", other_account.get_data(as_text=True))
         self.client.post(f"/delete/{entry_id}", follow_redirects=True)
         row = self.database_rows("SELECT user_id, food FROM food_entries WHERE id = ?", (entry_id,))
@@ -187,6 +223,46 @@ class CalorieTrackerTests(unittest.TestCase):
         entry_id = self.database_rows("SELECT id FROM food_entries")[0][0]
         response = self.client.post(f"/delete/{entry_id}", follow_redirects=True)
         self.assertIn("Your food log is empty", response.get_data(as_text=True))
+        self.assertEqual(self.database_rows("SELECT COUNT(*) FROM food_entries")[0][0], 0)
+
+    def test_existing_users_table_gets_first_name_migration(self):
+        database_path = Path(self.temporary_directory.name) / "legacy-users.sqlite3"
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE, "
+                "email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL)"
+            )
+            connection.execute("INSERT INTO users VALUES (1, 'legacy', 'legacy@example.com', 'hash')")
+        app.config["DATABASE"] = str(database_path)
+        init_db()
+        columns = {row[1] for row in self.database_rows("PRAGMA table_info(users)")}
+        self.assertIn("first_name", columns)
+        self.assertEqual(self.database_rows("SELECT first_name FROM users WHERE id = 1"), [("",)])
+
+    def test_guest_entry_limit(self):
+        for index in range(20):
+            response = self.client.post(
+                "/",
+                data={
+                    "food": f"Food {index}",
+                    "label_calories": "100",
+                    "reference_size": "1",
+                    "unit": "serving",
+                    "amount_eaten": "1",
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+        response = self.client.post(
+            "/",
+            data={
+                "food": "Extra food",
+                "label_calories": "100",
+                "reference_size": "1",
+                "unit": "serving",
+                "amount_eaten": "1",
+            },
+        )
+        self.assertIn("limited to 20 entries", response.get_data(as_text=True))
         self.assertEqual(self.database_rows("SELECT COUNT(*) FROM food_entries")[0][0], 0)
 
 

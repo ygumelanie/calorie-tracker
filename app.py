@@ -4,7 +4,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime
 
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, UserMixin, current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -31,14 +31,16 @@ ENTRY_COLUMNS = {
 }
 USER_COLUMNS = {"id", "username", "email", "password_hash"}
 ALLOWED_UNITS = {"serving", "g", "oz"}
+MAX_GUEST_ENTRIES = 20
 
 
 class User(UserMixin):
-    def __init__(self, user_id, username, email, password_hash):
+    def __init__(self, user_id, username, email, password_hash, first_name=""):
         self.id = str(user_id)
         self.username = username
         self.email = email
         self.password_hash = password_hash
+        self.first_name = first_name
 
 
 @contextmanager
@@ -114,10 +116,14 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL COLLATE NOCASE UNIQUE,
                 email TEXT NOT NULL COLLATE NOCASE UNIQUE,
-                password_hash TEXT NOT NULL
+                password_hash TEXT NOT NULL,
+                first_name TEXT NOT NULL DEFAULT ''
             )
             """
         )
+        user_columns = {row[1] for row in connection.execute("PRAGMA table_info(users)")}
+        if "first_name" not in user_columns:
+            connection.execute("ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''")
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS food_entries (
@@ -139,12 +145,14 @@ def init_db():
 def get_user_by_id(user_id):
     with get_connection() as connection:
         row = connection.execute(
-            "SELECT id, username, email, password_hash FROM users WHERE id = ?",
+            "SELECT id, username, email, password_hash, first_name FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
     if row is None:
         return None
-    return User(row["id"], row["username"], row["email"], row["password_hash"])
+    return User(
+        row["id"], row["username"], row["email"], row["password_hash"], row["first_name"]
+    )
 
 
 @login_manager.user_loader
@@ -169,17 +177,50 @@ def get_today_entries(user_id):
     return entries, total
 
 
+def transfer_guest_entries(user_id):
+    guest_entries = session.get("guest_entries", [])
+    if not guest_entries:
+        return
+
+    with get_connection() as connection:
+        connection.executemany(
+            """
+            INSERT INTO food_entries
+                (user_id, food, label_calories, reference_size, unit,
+                 amount_eaten, total_calories, entry_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    user_id,
+                    entry["food"],
+                    entry["label_calories"],
+                    entry["reference_size"],
+                    entry["unit"],
+                    entry["amount_eaten"],
+                    entry["total_calories"],
+                    entry["entry_date"],
+                )
+                for entry in guest_entries
+            ],
+        )
+    session.pop("guest_entries", None)
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     error = None
+    first_name_value = request.form.get("first_name", "").strip()
     username_value = request.form.get("username", "").strip()
     email_value = request.form.get("email", "").strip().lower()
 
     if request.method == "POST":
         password = request.form.get("password", "")
         confirmation = request.form.get("confirm_password", "")
-        if not username_value or not email_value or not password or not confirmation:
+        if not first_name_value or not username_value or not email_value or not password or not confirmation:
             error = "Please complete every field."
+        elif len(first_name_value) > 40:
+            error = "Choose a first name with 40 characters or fewer."
         elif len(username_value) > 40:
             error = "Choose a username with 40 characters or fewer."
         elif "@" not in email_value or "." not in email_value.rsplit("@", 1)[-1]:
@@ -192,19 +233,21 @@ def register():
             try:
                 with get_connection() as connection:
                     cursor = connection.execute(
-                        "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
-                        (username_value, email_value, generate_password_hash(password)),
+                        "INSERT INTO users (first_name, username, email, password_hash) VALUES (?, ?, ?, ?)",
+                        (first_name_value, username_value, email_value, generate_password_hash(password)),
                     )
                     user_id = cursor.lastrowid
             except sqlite3.IntegrityError:
                 error = "That username or email is already registered."
             else:
                 login_user(get_user_by_id(user_id))
+                transfer_guest_entries(user_id)
                 return redirect(url_for("home"))
 
     return render_template(
         "register.html",
         error=error,
+        first_name_value=first_name_value,
         username_value=username_value,
         email_value=email_value,
     )
@@ -220,13 +263,22 @@ def login():
         with get_connection() as connection:
             row = connection.execute(
                 """
-                SELECT id, username, email, password_hash FROM users
+                SELECT id, username, email, password_hash, first_name FROM users
                 WHERE username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE
                 """,
                 (identity_value, identity_value),
             ).fetchone()
         if row is not None and check_password_hash(row["password_hash"], password):
-            login_user(User(row["id"], row["username"], row["email"], row["password_hash"]))
+            login_user(
+                User(
+                    row["id"],
+                    row["username"],
+                    row["email"],
+                    row["password_hash"],
+                    row["first_name"],
+                )
+            )
+            transfer_guest_entries(row["id"])
             return redirect(url_for("home"))
         error = "That username/email and password combination wasn't recognized."
 
@@ -237,11 +289,10 @@ def login():
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for("login"))
+    return redirect(url_for("home"))
 
 
 @app.route("/", methods=["GET", "POST"])
-@login_required
 def home():
     error = None
     food_value = request.form.get("food", "").strip()
@@ -253,6 +304,8 @@ def home():
     if request.method == "POST":
         if not food_value or not label_calories_value or not reference_size_value or not amount_eaten_value:
             error = "Please complete the food and serving details."
+        elif len(food_value) > 100:
+            error = "Food names must be 100 characters or fewer."
         elif unit_value not in ALLOWED_UNITS:
             error = "Choose serving, grams (g), or ounces (oz) as the unit."
         else:
@@ -270,29 +323,56 @@ def home():
                     total_calories = label_calories * amount_eaten / reference_size
                     if not math.isfinite(total_calories):
                         error = "Those values are too large. Please enter smaller numbers."
+                    elif not current_user.is_authenticated and len(session.get("guest_entries", [])) >= MAX_GUEST_ENTRIES:
+                        error = f"Guest mode is limited to {MAX_GUEST_ENTRIES} entries. Create an account to keep logging."
                     else:
-                        with get_connection() as connection:
-                            connection.execute(
-                                """
-                                INSERT INTO food_entries
-                                    (user_id, food, label_calories, reference_size, unit,
-                                     amount_eaten, total_calories, entry_date)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                """,
-                                (
-                                    current_user.id,
-                                    food_value,
-                                    label_calories,
-                                    reference_size,
-                                    unit_value,
-                                    amount_eaten,
-                                    total_calories,
-                                    date.today().isoformat(),
-                                ),
+                        entry_date = date.today().isoformat()
+                        if current_user.is_authenticated:
+                            with get_connection() as connection:
+                                connection.execute(
+                                    """
+                                    INSERT INTO food_entries
+                                        (user_id, food, label_calories, reference_size, unit,
+                                         amount_eaten, total_calories, entry_date)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                    """,
+                                    (
+                                        current_user.id,
+                                        food_value,
+                                        label_calories,
+                                        reference_size,
+                                        unit_value,
+                                        amount_eaten,
+                                        total_calories,
+                                        entry_date,
+                                    ),
+                                )
+                        else:
+                            guest_entries = session.setdefault("guest_entries", [])
+                            guest_entries.append(
+                                {
+                                    "id": max((entry["id"] for entry in guest_entries), default=0) + 1,
+                                    "food": food_value,
+                                    "label_calories": label_calories,
+                                    "reference_size": reference_size,
+                                    "unit": unit_value,
+                                    "amount_eaten": amount_eaten,
+                                    "total_calories": total_calories,
+                                    "entry_date": entry_date,
+                                }
                             )
+                            session.modified = True
                         return redirect(url_for("home"))
 
-    entries, daily_total = get_today_entries(current_user.id)
+    if current_user.is_authenticated:
+        entries, daily_total = get_today_entries(current_user.id)
+    else:
+        entries = [
+            entry
+            for entry in reversed(session.get("guest_entries", []))
+            if entry["entry_date"] == date.today().isoformat()
+        ]
+        daily_total = sum(entry["total_calories"] for entry in entries)
     return render_template(
         "index.html",
         entries=entries,
@@ -304,17 +384,25 @@ def home():
         unit_value=unit_value,
         amount_eaten_value=amount_eaten_value,
         today=date.today(),
+        guest_mode=not current_user.is_authenticated,
+        first_name=(current_user.first_name or current_user.username)
+        if current_user.is_authenticated
+        else None,
     )
 
 
 @app.route("/delete/<int:entry_id>", methods=["POST"])
-@login_required
 def delete_entry(entry_id):
-    with get_connection() as connection:
-        connection.execute(
-            "DELETE FROM food_entries WHERE id = ? AND user_id = ? AND entry_date = ?",
-            (entry_id, current_user.id, date.today().isoformat()),
-        )
+    if current_user.is_authenticated:
+        with get_connection() as connection:
+            connection.execute(
+                "DELETE FROM food_entries WHERE id = ? AND user_id = ? AND entry_date = ?",
+                (entry_id, current_user.id, date.today().isoformat()),
+            )
+    else:
+        session["guest_entries"] = [
+            entry for entry in session.get("guest_entries", []) if entry["id"] != entry_id
+        ]
     return redirect(url_for("home"))
 
 

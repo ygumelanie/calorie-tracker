@@ -34,6 +34,10 @@
 
             <form class="auth-form" method="post" action="{{ url_for('register') }}">
                 <div class="field">
+                    <label for="first_name">First name</label>
+                    <input id="first_name" name="first_name" type="text" maxlength="40" autocomplete="given-name" value="{{ first_name_value }}" required>
+                </div>
+                <div class="field">
                     <label for="username">Username</label>
                     <input id="username" name="username" type="text" maxlength="40" autocomplete="username" value="{{ username_value }}" required>
                 </div>

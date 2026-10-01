@@ -18,12 +18,28 @@
                 </span>
             </a>
             <div class="header-tools">
+                {% if current_user.is_authenticated %}
+                    <span class="header-greeting">Hi, {{ first_name }}</span>
+                    <form method="post" action="{{ url_for('logout') }}">
+                        <button class="logout-button" type="submit">Log out</button>
+                    </form>
+                {% else %}
+                    <a class="header-link" href="{{ url_for('login') }}">Log in</a>
+                    <a class="header-action" href="{{ url_for('register') }}">Create account</a>
+                {% endif %}
                 <span class="header-date">{{ today.strftime('%A, %B %-d') }}</span>
-                <form method="post" action="{{ url_for('logout') }}">
-                    <button class="logout-button" type="submit">Log out</button>
-                </form>
             </div>
         </header>
+
+        {% if guest_mode %}
+            <aside class="guest-banner">
+                <p>You’re using guest mode. Create an account to save your food log.</p>
+                <div>
+                    <a href="{{ url_for('login') }}">Log in</a>
+                    <a class="guest-create-link" href="{{ url_for('register') }}">Create account</a>
+                </div>
+            </aside>
+        {% endif %}
 
         <section class="summary-card" aria-labelledby="summary-title" aria-live="polite">
             <div class="summary-copy">

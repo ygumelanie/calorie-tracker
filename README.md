@@ -1,6 +1,6 @@
 # FuelLog
 
-FuelLog is a small Flask app for keeping a private daily food log. Each account can register, log in, enter food measurements, review today's calories, and delete its own entries.
+FuelLog is a small Flask app for tracking daily food. Visitors can use the tracker without an account; guest entries stay in the browser session and are not written to SQLite. Create an account or log in to transfer the current guest log into a private account.
 
 ## Run locally
 
@@ -19,7 +19,7 @@ export SECRET_KEY="replace-this-with-a-long-random-value"
 python app.py
 ```
 
-For local development only, the app has a clearly labeled fallback key when `SECRET_KEY` is not set. Do not use that fallback for a public deployment. Open <http://127.0.0.1:5000>, create an account, and start a food log.
+For local development only, the app has a clearly labeled fallback key when `SECRET_KEY` is not set. Do not use that fallback for a public deployment. Open <http://127.0.0.1:5000> and start a food log. Guest mode supports up to 20 entries per browser session; logging in or registering transfers those entries to the account.
 
 ## Food measurements
 
@@ -31,7 +31,7 @@ For example, 150 calories per 40 g and 60 g eaten is 225 calories.
 
 ## Data and safety
 
-The app stores accounts and food entries in `calorie_tracker.db` using SQLite. Passwords are stored as Werkzeug password hashes. Food queries and deletes are scoped to the logged-in account. If startup finds an incompatible older database, it preserves a timestamped `.backup-*.db` copy before creating the new schema; entries from the old schema are not assigned to an account automatically.
+The app stores accounts and saved food entries in `calorie_tracker.db` using SQLite. Passwords are stored as Werkzeug password hashes. Food queries and deletes are scoped to the logged-in account. Startup safely adds the `first_name` column to an existing users table when needed. If startup finds an incompatible older database, it preserves a timestamped `.backup-*.db` copy before creating the new schema; entries from the old schema are not assigned to an account automatically.
 
 The development server is intended for local use. `gunicorn` is listed as a dependency for a later deployment setup, but this project is not configured or deployed here.
 
